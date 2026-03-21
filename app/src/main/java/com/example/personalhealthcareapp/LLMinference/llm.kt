@@ -5,69 +5,102 @@ import android.util.Log
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
-//object created to run llm in background
-object LLMInferenceManager{
-    private var llmInference: LlmInference? = null//check that if modle is running or not cause loading heavy modle every time makes tha app very heavy
-    private const val MODEL_NAME="gemma-1.1-2b-it-cpu-int4.bin"
-// creating the pipeline that connect modle to ui
-    private val _partialresult = MutableSharedFlow<String>(//privately store the input and pass it into modle
+
+sealed class ModelState {
+    data object Idle : ModelState()
+    data object Loading : ModelState()
+    data object Ready : ModelState()
+    data class Error(val message: String) : ModelState()
+}
+
+object LLMInferenceManager {
+
+    private var llmInference: LlmInference? = null
+    private const val MODEL_NAME = "gemma-1.1-2b-it-cpu-int4.bin"
+    private const val TAG = "NeuroPocket"
+
+    private val _modelState = MutableStateFlow<ModelState>(ModelState.Idle)
+    val modelState: StateFlow<ModelState> = _modelState.asStateFlow()
+
+    // Use SUSPEND strategy so we never drop tokens mid-stream
+    private val _partialResult = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.SUSPEND
+    )
+    val partialResult: SharedFlow<String> = _partialResult.asSharedFlow()
+
+    // Signal when a full response is done
+    private val _responseDone = MutableSharedFlow<Unit>(
         replay = 0,
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val partialresult: SharedFlow<String> = _partialresult.asSharedFlow()// store the result
+    val responseDone: SharedFlow<Unit> = _responseDone.asSharedFlow()
 
     fun initModel(context: Context) {
         if (llmInference != null) return
-
-        Log.d("AiBot", "1. Starting to load model...")
+        _modelState.value = ModelState.Loading
+        Log.d(TAG, "Starting model load...")
 
         try {
             val modelFile = File(context.cacheDir, MODEL_NAME)
             if (!modelFile.exists()) {
-                Log.d("AiBot", "2. Copying file from Assets to Cache...")
-                context.assets.open(MODEL_NAME).use { inputStream ->
-                    modelFile.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
+                Log.d(TAG, "Copying model from assets to cache...")
+                context.assets.open(MODEL_NAME).use { input ->
+                    modelFile.outputStream().buffered(8192).use { output ->
+                        input.copyTo(output, bufferSize = 8192)
                     }
                 }
             }
 
-            Log.d("AiBot", "3. File ready. Configuring engine...")
+            Log.d(TAG, "Configuring inference engine...")
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelFile.absolutePath)
                 .setMaxTokens(1024)
                 .setResultListener { partialResult, done ->
-                    Log.d("AiBot", "AI said: $partialResult") // Watch the AI talk in logs
-                    _partialresult.tryEmit(partialResult)
+                    _partialResult.tryEmit(partialResult)
+                    if (done) {
+                        _responseDone.tryEmit(Unit)
+                    }
                 }
                 .build()
 
-            Log.d("AiBot", "4. Loading into RAM (This is the heavy part)...")
+            Log.d(TAG, "Loading model into memory...")
             llmInference = LlmInference.createFromOptions(context, options)
-            Log.d("AiBot", "5. SUCCESS! Brain is alive.")
+            _modelState.value = ModelState.Ready
+            Log.d(TAG, "Model loaded successfully.")
 
         } catch (e: Exception) {
-            // If it fails, this will print the EXACT reason in red text
-            Log.e("AiBot", "CRITICAL ERROR LOADING AI: ${e.message}")
+            val msg = e.message ?: "Unknown error"
+            Log.e(TAG, "Failed to load model: $msg")
+            _modelState.value = ModelState.Error(msg)
         }
     }
 
-    fun generateResponse(prompt: String) {
-        if (llmInference == null) {
-            Log.e("AiBot", "Cannot generate response. The Brain is null!")
-            return
+    fun generateResponse(prompt: String): Boolean {
+        val inference = llmInference
+        if (inference == null) {
+            Log.e(TAG, "Cannot generate: model not loaded.")
+            return false
         }
 
-        Log.d("AiBot", "6. Sending message to AI: $prompt")
-        val formattedPrompt = "<start_of_turn>user\n$prompt<end_of_turn>\n<start_of_turn>model\n"
+        Log.d(TAG, "Generating response for: ${prompt.take(50)}...")
+        val formattedPrompt =
+            "<start_of_turn>user\n$prompt<end_of_turn>\n<start_of_turn>model\n"
 
-        try {
-            llmInference?.generateResponseAsync(formattedPrompt)
+        return try {
+            inference.generateResponseAsync(formattedPrompt)
+            true
         } catch (e: Exception) {
-            Log.e("AiBot", "Error during generation: ${e.message}")
+            Log.e(TAG, "Generation error: ${e.message}")
+            false
         }
-    }}
+    }
+}
