@@ -25,7 +25,7 @@ Whether you need coding help, creative writing, or just a virtual brainstorming 
 ## 📱 UI Showcase
 
 <p align="center">
-  <img src="![Image](https://github.com/user-attachments/assets/d7720f77-365d-4c79-8f44-46a7e5dd16ce)" width="30%" alt="Home / Chat Screen" /
+  <img src="https://github.com/user-attachments/assets/d7720f77-365d-4c79-8f44-46a7e5dd16ce" width="30%" alt="Home / Chat Screen" /
 </p>
 
 ---
