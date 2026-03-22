@@ -25,7 +25,12 @@ Whether you need coding help, creative writing, or just a virtual brainstorming 
 ## 📱 UI Showcase
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/d7720f77-365d-4c79-8f44-46a7e5dd16ce" width="30%" alt="Home / Chat Screen" /
+  <img src="https://github.com/user-attachments/assets/d7720f77-365d-4c79-8f44-46a7e5dd16ce" width="30%" alt="Home / Chat Screen" />
+    <img src="https://github.com/user-attachments/assets/12480d96-88b2-4749-b632-8c9c7ad69b81" width="30%" alt="History / History" />
+        <img src="https://github.com/user-attachments/assets/fe9ada39-5da8-40e1-adde-84889d3acc48" width="30%" alt="Chat / Live Chat" />
+
+    
+
 </p>
 
 ---
