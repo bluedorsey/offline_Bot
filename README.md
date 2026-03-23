@@ -154,9 +154,6 @@ Open the project in Android Studio and press **Run ▶**, or build via Gradle:
 
 ---
 
-## 📜 License
-
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
 
 ---
 
